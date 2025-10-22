@@ -1,3 +1,10 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
+/* Or ensure dark mode uses media query */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
+}
+
+
