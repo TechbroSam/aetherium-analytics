@@ -1,42 +1,37 @@
 // src/app/coin/[id]/page.tsx
+'use client';
+
+import { useState } from 'react';
+import useSWR from 'swr';
 import Image from 'next/image';
 import Link from 'next/link';
 import AetheriumIndex from '@/components/AetheriumIndex';
 import SupplyChart from '@/components/SupplyChart';
-import PriceChartContainer from '@/components/PriceChartContainer'; // Import our new container
+import PriceChartContainer from '@/components/PriceChartContainer';
 
-// This function fetches data directly on the server from CoinMarketCap
-async function getCoinDetail(coinId: string) {
-  const apiKey = process.env.COINMARKETCAP_API_KEY;
-  try {
-    const res = await fetch(`https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?id=${coinId}&convert=GBP`, {
-      headers: { 'X-CMC_PRO_API_KEY': apiKey! },
-      next: { revalidate: 300 },
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.data[coinId];
-  } catch (error) {
-    console.error("Failed to fetch coin detail:", error);
-    return null;
-  }
-}
+const fetcher = (url: string) => fetch(url).then(res => res.json());
 
-export default async function CoinDetailPage({ params }: { params: { id: string } }) {
-  const coin = await getCoinDetail(params.id);
+export default function CoinDetailPage({ params }: { params: { id: string } }) {
+  const [currency, setCurrency] = useState<'gbp' | 'usd'>('gbp');
+  
+  // SWR re-fetches automatically when the URL (containing the currency) changes
+  const { data: coinData, error: detailError } = useSWR(`/api/crypto/${params.id}?convert=${currency}`, fetcher);
 
-  if (!coin) {
-    return <p className="text-center py-20 text-red-500">Failed to load data or coin not found.</p>;
-  }
+  const coin = coinData?.data?.[params.id];
+  const isLoading = !coinData && !detailError;
 
-  const quote = coin.quote.GBP;
-
-  const formatPrice = (price: number) => {
+  const formatPrice = (price: number, curr: 'gbp' | 'usd') => {
     if (price < 0.01) {
-      return `£${price.toLocaleString('en-GB', { maximumSignificantDigits: 4 })}`;
+      const symbol = curr === 'gbp' ? '£' : '$';
+      return `${symbol}${price.toLocaleString('en-US', { maximumSignificantDigits: 4 })}`;
     }
-    return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(price);
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: curr.toUpperCase() }).format(price);
   };
+
+  if (isLoading) return <p className="text-center py-20">Loading coin data...</p>;
+  if (detailError || !coin) return <p className="text-center py-20 text-red-500">Failed to load data.</p>;
+
+  const quote = coin.quote[currency.toUpperCase()];
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -60,13 +55,10 @@ export default async function CoinDetailPage({ params }: { params: { id: string 
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <main className="md:col-span-2 space-y-8">
-          {/* The Price Chart is now rendered via its own client component */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
             <h2 className="font-semibold text-lg mb-4">Price Chart (7 Days)</h2>
             <PriceChartContainer symbol={coin.symbol} />
           </div>
-
-          {/* The Supply Chart is rendered with server data */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
             <h2 className="font-semibold text-lg mb-4">Supply Distribution</h2>
             <SupplyChart 
@@ -75,13 +67,18 @@ export default async function CoinDetailPage({ params }: { params: { id: string 
               symbol={coin.symbol} 
             />
           </div>
-          
           <AetheriumIndex coinName={coin.name} />
         </main>
 
         <aside>
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-            <h2 className="text-2xl font-bold mb-4">{formatPrice(quote.price)}</h2>
+            <h2 
+              className="text-2xl font-bold mb-4 cursor-pointer"
+              onClick={() => setCurrency(c => c === 'gbp' ? 'usd' : 'gbp')}
+              title={`Click to switch to ${currency === 'gbp' ? 'USD' : 'GBP'}`}
+            >
+              {formatPrice(quote.price, currency)}
+            </h2>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-500">24h Change</span>
@@ -89,11 +86,11 @@ export default async function CoinDetailPage({ params }: { params: { id: string 
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Market Cap</span>
-                <span>{new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', notation: 'compact' }).format(quote.market_cap)}</span>
+                <span>{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.toUpperCase(), notation: 'compact' }).format(quote.market_cap)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Volume (24h)</span>
-                <span>{new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', notation: 'compact' }).format(quote.volume_24h)}</span>
+                <span>{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.toUpperCase(), notation: 'compact' }).format(quote.volume_24h)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Circulating Supply</span>
