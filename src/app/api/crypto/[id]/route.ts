@@ -5,9 +5,6 @@ export async function GET(
   request: NextRequest, 
   { params }: { params: Promise<{ id: string }> } // params is now a Promise
 ) {
-  // Await the params to get the actual values
-  const { id } = await params;
-
   const apiKey = process.env.COINMARKETCAP_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: 'API key not configured.' }, { status: 500 });
